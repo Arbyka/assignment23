@@ -7,7 +7,6 @@ import (
 	"gorm.io/gorm"
 )
 
-// Bikin Array buat nampung
 var usersInMemory = []models.User{}
 
 type UserController struct {
