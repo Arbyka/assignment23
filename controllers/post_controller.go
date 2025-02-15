@@ -94,6 +94,117 @@ func (pc *PostController) CreatePost(c *gin.Context) {
 
 }
 
+func (pc *PostController) UpdatePost(c *gin.Context) {
+	var req models.UpdatePostRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+
+	userId, exists := c.Get("userId")
+	if !exists {
+		c.JSON(401, gin.H{"error": "Unauthorized"})
+		return
+	}
+
+	var post models.Post
+	// Check if post exists and belongs to user
+	if err := pc.DB.Where("id = ? AND user_id = ?", c.Param("id"), userId).First(&post).Error; err != nil {
+		c.JSON(404, gin.H{"error": "Post not found or unauthorized"})
+		return
+	}
+
+	tx := pc.DB.Begin()
+
+	// Update basic post info
+	if req.Title != "" {
+		post.Title = req.Title
+	}
+	if req.Content != "" {
+		post.Content = req.Content
+	}
+
+	if err := tx.Save(&post).Error; err != nil {
+		tx.Rollback()
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Update tags if provided
+	if len(req.TagIds) > 0 {
+		var tags []models.Tag
+		if err := tx.Find(&tags, req.TagIds).Error; err != nil {
+			tx.Rollback()
+			c.JSON(400, gin.H{"error": "Invalid tag IDs"})
+			return
+		}
+
+		if len(tags) != len(req.TagIds) {
+			tx.Rollback()
+			c.JSON(400, gin.H{"error": "Some tags were not found"})
+			return
+		}
+
+		// Replace existing tags
+		if err := tx.Model(&post).Association("Tags").Replace(&tags); err != nil {
+			tx.Rollback()
+			c.JSON(400, gin.H{"error": err.Error()})
+			return
+		}
+	}
+
+	tx.Commit()
+
+	// Reload post with associations
+	if err := pc.DB.Preload("User").Preload("Tags").First(&post, post.ID).Error; err != nil {
+		c.JSON(400, gin.H{"error": "Error loading updated post"})
+		return
+	}
+
+	c.JSON(200, gin.H{"data": "update success"})
+}
+
+func (pc *PostController) DeletePost(c *gin.Context) {
+	userId, exists := c.Get("userId")
+
+	if !exists {
+		c.JSON(401, gin.H{"error": "Uanthorized"})
+		return
+	}
+
+	var post models.Post
+
+	if err := pc.DB.Where("id = ? AND user_id = ?", c.Param("id"), userId).First(&post).Error; err != nil {
+		c.JSON(404, gin.H{"error": "Post bot found or Uanthorized"})
+		return
+	}
+
+	tx := pc.DB.Begin()
+
+	if err := tx.Model(&post).Association("Tags").Clear(); err != nil {
+		tx.Rollback()
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Hard delete
+	if err := tx.Unscoped().Delete(&post).Error; err != nil {
+		tx.Rollback()
+		c.JSON(400, gin.H{"Error": err.Error()})
+		return
+	}
+
+	if err := tx.Delete(&post).Error; err != nil {
+		tx.Rollback()
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+
+	tx.Commit()
+
+	c.JSON(200, gin.H{"data": "Postingan berhasil dihapus"})
+}
+
 func (pc *PostController) GetPosts(c *gin.Context) {
 	var posts []models.Post
 
