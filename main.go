@@ -28,6 +28,8 @@ func main() {
 	productController := controllers.NewProductController(db)
 	inventoryController := controllers.NewInventoryController(db)
 	orderController := controllers.NewOrderController(db)
+	sysController := controllers.NewSysController(db)
+	// productImageController := controllers.NewProductImageController(db)
 
 	api := r.Group("/api")
 	{
@@ -65,6 +67,8 @@ func main() {
 			protected.POST("/products", productController.CreateProduct)
 			protected.PUT("/products/:id", productController.UpdateProduct)
 			protected.DELETE("/products/:id", productController.DeleteProduct)
+			protected.POST("/products/:id/upload", productController.UploadProductImage)
+			protected.GET("/products/:id/download", productController.DownloadProductImage)
 
 		//  //  Inventory
 			protected.GET("/inventory", inventoryController.GetInventory)
@@ -75,6 +79,18 @@ func main() {
 			protected.GET("/orders", orderController.GetOrders)
 			protected.GET("/orders/:order_id", orderController.GetOrderByID)
 			protected.POST("/orders", orderController.CreateOrder)
+
+		//  //  SYS Routes
+			protected.POST("/directory", sysController.CreateDirectory)
+			protected.POST("/file", sysController.CreateFile)
+			protected.POST("/file/read", sysController.ReadFile)
+			protected.PUT("/file/rename", sysController.RenameFile)
+			protected.POST("/file/upload", sysController.UploadFile)
+			protected.GET("/file/download", sysController.DownloadFile)
+
+		//	//	Upload Product
+			// protected.POST("/products/upload-image", productImageController.UploadImage)
+			// protected.GET("/products/download-image/:id", productImageController.DownloadImage)
 		}
 	}
 

@@ -11,4 +11,5 @@ type Product struct {
 	Description string  `json:"description"`
 	Price       float64 `json:"price"`
 	Category    string  `json:"category"`
+	Image       string  `json:"image"`
 }
