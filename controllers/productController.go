@@ -1,6 +1,8 @@
 package controllers
 
 import (
+	"os"
+	"path/filepath"
 	"golangapi/models"
 	"net/http"
 
@@ -93,4 +95,75 @@ func (pc *ProductController) DeleteProduct(c *gin.Context) {
 
 	pc.DB.Delete(&product)
 	c.JSON(http.StatusOK, gin.H{"message": "Produk berhasil dihapus"})
+}
+
+// Upload Product Image
+func (pc *ProductController) UploadProductImage(c *gin.Context) {
+	id := c.Param("id")
+
+	// Cari produk berdasarkan ID
+	var product models.Product
+	if err := pc.DB.First(&product, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Produk tidak ditemukan"})
+		return
+	}
+
+	// Validasi dan ambil file
+	file, err := c.FormFile("image")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "File tidak ditemukan"})
+		return
+	}
+
+	// Validasi format file
+	allowedExtensions := map[string]bool{".png": true, ".jpg": true, ".jpeg": true}
+	ext := filepath.Ext(file.Filename)
+	if !allowedExtensions[ext] {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Format file tidak valid, hanya PNG, JPG, dan JPEG diperbolehkan"})
+		return
+	}
+
+	// Buat folder uploads/products jika belum ada
+	uploadDir := "uploads/products"
+	if err := os.MkdirAll(uploadDir, 0755); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat direktori penyimpanan"})
+		return
+	}
+
+	// Simpan file dengan nama ID produk
+	filename := id + ext
+	filePath := filepath.Join(uploadDir, filename)
+
+	// Simpan file ke disk
+	if err := c.SaveUploadedFile(file, filePath); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menyimpan file"})
+		return
+	}
+
+	// Update path gambar di database
+	product.Image = filePath
+	pc.DB.Save(&product)
+
+	c.JSON(http.StatusOK, gin.H{"message": "Gambar berhasil diunggah", "file_path": filePath})
+}
+
+// Download Product Image
+func (pc *ProductController) DownloadProductImage(c *gin.Context) {
+	id := c.Param("id")
+
+	// Cari produk berdasarkan ID
+	var product models.Product
+	if err := pc.DB.First(&product, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Produk tidak ditemukan"})
+		return
+	}
+
+	// Cek apakah produk memiliki gambar
+	if product.Image == "" {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Gambar tidak tersedia"})
+		return
+	}
+
+	// Kirim gambar ke client
+	c.File(product.Image)
 }
